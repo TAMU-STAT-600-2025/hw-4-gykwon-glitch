@@ -9,7 +9,7 @@ standardizeXY <- function(X, Y){
   n <- nrow(X)
   p <- ncol(X)
   meansX <- colMeans(X)
-  Xcentered <- X - matrix(meansX, n, p, byrow = TRUE)
+  X_centered <- X - matrix(meansX, n, p, byrow = TRUE)
   
   weights <- sqrt(colSums(X_centered^2) / n)
   Xtilde <- sweep(X_centered, 2, weights, "/")
@@ -25,7 +25,8 @@ standardizeXY <- function(X, Y){
 # [ToDo] Soft-thresholding of a scalar a at level lambda 
 # [OK to have vector version as long as works correctly on scalar; will only test on scalars]
 soft <- function(a, lambda){
-
+  S <- sign(a) * max(abs(a)-lambda, 0)
+  return(S)
 }
 
 # [ToDo] Calculate objective function of lasso given current values of Xtilde, Ytilde, beta and lambda
@@ -34,7 +35,8 @@ soft <- function(a, lambda){
 # lamdba - tuning parameter
 # beta - value of beta at which to evaluate the function
 lasso <- function(Xtilde, Ytilde, beta, lambda){
- 
+ n <- nrow(Xtilde)
+ return((1 / (2 * n)) * sum((Ytilde - Xtilde %*% beta)^2) + lambda * sum(abs(beta)))
 }
 
 # [ToDo] Fit LASSO on standardized data for a given lambda
@@ -45,21 +47,57 @@ lasso <- function(Xtilde, Ytilde, beta, lambda){
 # eps - precision level for convergence assessment, default 0.001
 fitLASSOstandardized <- function(Xtilde, Ytilde, lambda, beta_start = NULL, eps = 0.001){
   #[ToDo]  Check that n is the same between Xtilde and Ytilde
-  
+  if ((nrow(Xtilde) != length(Ytilde))) {
+    stop("Check for compatibility of dimensions between Xtilde and Ytilde")
+  }
   #[ToDo]  Check that lambda is non-negative
-  
+  if (lambda < 0) {
+    stop("Check that lambda is non-negative")
+  }
+  n <- nrow(Xtilde)
+  p <- ncol(Xtilde)
   #[ToDo]  Check for starting point beta_start. 
   # If none supplied, initialize with a vector of zeros.
+  if(is.null(beta_start)){
+    beta <- numeric(p)
+  }
   # If supplied, check for compatibility with Xtilde in terms of p
-  
+  else {
+    if (length(beta_start) != p) stop("check for compatibility with Xtilde")
+    beta <- as.numeric(beta_start)
+  }
   #[ToDo]  Coordinate-descent implementation. 
   # Stop when the difference between objective functions is less than eps for the first time.
   # For example, if you have 3 iterations with objectives 3, 1, 0.99999,
   # your should return fmin = 0.99999, and not have another iteration
-  
+  fobj_current <- lasso(Xtilde, Ytilde, beta, lambda)
+  diff <- Inf
+  while (diff > eps) {
+    # r : residual
+    r = as.numeric(Ytilde - (Xtilde %*% beta))
+    
+    for (j in 1:p) {
+      xj <- Xtilde[, j]
+      # a : vector to take soft
+      # partial residual: r + xj * beta[j]
+      a <- as.numeric((1/n) * crossprod(xj, r + xj * beta[j]))
+      beta_j_new <- soft(a, lambda)
+      
+      # residual update so that r = Y - Xbeta stays consistent
+      r <- r + xj * (beta[j] - beta_j_new)
+      beta[j] <- beta_j_new
+    }
+    # calculate new objective function
+    fobj_new <- lasso(Xtilde, Ytilde, beta, lambda)
+    # difference between objective functions
+    diff <- abs(fobj_current - fobj_new)
+    # update
+    fobj_current <- fobj_new
+  }
   # Return 
   # beta - the solution (a vector)
   # fmin - optimal function value (value of objective at beta, scalar)
+  fmin <- fobj_current
   return(list(beta = beta, fmin = fmin))
 }
 
