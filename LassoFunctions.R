@@ -80,7 +80,7 @@ fitLASSOstandardized <- function(Xtilde, Ytilde, lambda, beta_start = NULL, eps 
       xj <- Xtilde[, j]
       # a : vector to take soft
       # partial residual: r + xj * beta[j]
-      a <- as.numeric(beta[j] + (crossprod(Xtilde[ , j], r) / n))
+      a <- as.numeric(beta[j] + (crossprod(Xtilde[, j], r) / n))
       beta_j_new <- soft(a, lambda)
 
       # residual update so that r = Y - Xbeta stays consistent
@@ -120,40 +120,39 @@ fitLASSOstandardized_seq <- function(Xtilde, Ytilde, lambda_seq = NULL, n_lambda
   # and make sure the values are sorted from largest to smallest.
   # If none of the supplied values satisfy the requirement,
   # print the warning message and proceed as if the values were not supplied.
-  if (!is.null(lambda_seq)){
+  if (!is.null(lambda_seq)) {
     lambda_seq <- lambda_seq[which(lambda_seq >= 0)]
-    if (length(lambda_seq) == 0 ){
+    if (length(lambda_seq) == 0) {
       warning("none of the supplied values satisfy the requirement. proceed as if the values were not supplied")
       lambda_max <- max(abs(1 / n * crossprod(Xtilde, Ytilde)))
       lambda_seq <- exp(seq(log(lambda_max), log(0.01), length = n_lambda))
     }
-  }
-  else {
+  } else {
     # If lambda_seq is not supplied, calculate lambda_max
     lambda_max <- max(abs(1 / n * crossprod(Xtilde, Ytilde)))
     # (the minimal value of lambda that gives zero solution),
     # and create a sequence of length n_lambda as
     lambda_seq <- exp(seq(log(lambda_max), log(0.01), length = n_lambda))
   }
-  # sort 
+  # sort
   lambda_seq <- sort(lambda_seq, decreasing = TRUE)
-  
+
   # [ToDo] Apply fitLASSOstandardized going from largest to smallest lambda
   # (make sure supplied eps is carried over).
   # Use warm starts strategy discussed in class for setting the starting values.
   lambda_len <- length(lambda_seq)
   beta_mat <- matrix(0, p, lambda_len)
   fmin_vec <- rep(0, lambda_len)
-  
-  beta_fmin_list <- fitLASSOstandardized(Xtilde, Ytilde, lambda_seq[1], beta_start = beta_mat[ , 1], eps = eps)
-  beta_mat[ , 1] <- beta_fmin_list$beta
+
+  beta_fmin_list <- fitLASSOstandardized(Xtilde, Ytilde, lambda_seq[1], beta_start = beta_mat[, 1], eps = eps)
+  beta_mat[, 1] <- beta_fmin_list$beta
   fmin_vec[1] <- beta_fmin_list$fmin
   # loop from 2 if lambda_len >= 2
-  if(lambda_len >= 2) {
-    for(i in 2:lambda_len) {
+  if (lambda_len >= 2) {
+    for (i in 2:lambda_len) {
       # warm start : start from beta_mat[ , i - 1]
-      beta_fmin_list <- fitLASSOstandardized(Xtilde, Ytilde, lambda_seq[i], beta_start = beta_mat[ , (i - 1)], eps = eps)
-      beta_mat[ , i] <- beta_fmin_list$beta
+      beta_fmin_list <- fitLASSOstandardized(Xtilde, Ytilde, lambda_seq[i], beta_start = beta_mat[, (i - 1)], eps = eps)
+      beta_mat[, i] <- beta_fmin_list$beta
       fmin_vec[i] <- beta_fmin_list$fmin
     }
   }
@@ -174,8 +173,8 @@ fitLASSO <- function(X, Y, lambda_seq = NULL, n_lambda = 60, eps = 0.001) {
   # [ToDo] Center and standardize X,Y based on standardizeXY function
   standardize <- standardizeXY(X, Y)
   Xtilde <- standardize$Xtilde
-  Ytilde <- standardize$Ytilde 
-  Ymean <- standardize$Ymean 
+  Ytilde <- standardize$Ytilde
+  Ymean <- standardize$Ymean
   Xmeans <- standardize$Xmeans
   weights <- standardize$weights
   # [ToDo] Fit Lasso on a sequence of values using fitLASSOstandardized_seq
@@ -203,24 +202,22 @@ fitLASSO <- function(X, Y, lambda_seq = NULL, n_lambda = 60, eps = 0.001) {
 # fold_ids - (optional) vector of length n specifying the folds assignment (from 1 to max(folds_ids)), if supplied the value of k is ignored
 # eps - precision level for convergence assessment, default 0.001
 cvLASSO <- function(X, Y, lambda_seq = NULL, n_lambda = 60, k = 5, fold_ids = NULL, eps = 0.001) {
-  
   n <- nrow(X)
   # [ToDo] Fit Lasso on original data using fitLASSO
   fit <- fitLASSO(X, Y, lambda_seq = lambda_seq, n_lambda = n_lambda, eps = eps)
   lambda_seq <- fit$lambda_seq
   L <- length(lambda_seq)
-  beta_mat  <- fit$beta_mat
+  beta_mat <- fit$beta_mat
   beta0_vec <- fit$beta0_vec
   # [ToDo] If fold_ids is NULL, split the data randomly into k folds.
   # If fold_ids is not NULL, split the data according to supplied fold_ids.
-  if(is.null(fold_ids)){
+  if (is.null(fold_ids)) {
     if (k <= 1) stop("k must be >= 2 when fold_ids is NULL.")
     # split equally + random order
     order <- sample.int(n)
     fold_ids <- ((seq_len(n) - 1) %% k) + 1
     fold_ids <- fold_ids[order]
-  }
-  else {
+  } else {
     k <- max(fold_ids)
   }
   # [ToDo] Calculate LASSO on each fold using fitLASSO,
@@ -229,38 +226,39 @@ cvLASSO <- function(X, Y, lambda_seq = NULL, n_lambda = 60, k = 5, fold_ids = NU
   for (fold in seq_len(k)) {
     idx_tr <- fold_ids != fold # train index
     idx_va <- !idx_tr # validation index
-    
+
     Xtr <- X[idx_tr, , drop = FALSE]
     Ytr <- Y[idx_tr]
     Xva <- X[idx_va, , drop = FALSE]
     Yva <- Y[idx_va]
-    
+
     # refitting with the same lambda_seq
     fit_f <- fitLASSO(Xtr, Ytr, lambda_seq = lambda_seq, n_lambda = L, eps = eps)
     num_val <- length(Yva)
-    
+
     # predict
-    B0   <- matrix(rep(fit_f$beta0_vec, each = num_val),
-                   nrow = num_val, ncol = L, byrow = FALSE)
+    B0 <- matrix(rep(fit_f$beta0_vec, each = num_val),
+      nrow = num_val, ncol = L, byrow = FALSE
+    )
     Yhat <- B0 + Xva %*% fit_f$beta_mat
     Ymat <- matrix(Yva, nrow = num_val, ncol = L)
-    
+
     cv_fold[fold, ] <- colMeans((Ymat - Yhat)^2)
   }
-  
+
   # cv summary statistics
-  cvm  <- colMeans(cv_fold)
+  cvm <- colMeans(cv_fold)
   cvse <- apply(cv_fold, 2, stats::sd) / sqrt(k)
-  
+
   # [ToDo] Find lambda_min
   # lambda_min (min-CV rule)
-  idx_min    <- which.min(cvm)
+  idx_min <- which.min(cvm)
   lambda_min <- lambda_seq[idx_min]
-  
+
   # [ToDo] Find lambda_1SE
   # lambda_1se (1-SE rule): Biggest lambda satisfying CV <= minCV + SE(min)
-  crit       <- cvm[idx_min] + cvse[idx_min]
-  idx_1se    <- which(cvm <= crit)[1]   # lambda_seq is sorted from max to min
+  crit <- cvm[idx_min] + cvse[idx_min]
+  idx_1se <- which(cvm <= crit)[1] # lambda_seq is sorted from max to min
   lambda_1se <- lambda_seq[idx_1se]
 
   # Return output
